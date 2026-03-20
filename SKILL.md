@@ -56,23 +56,27 @@ python3 scripts/build_index.py <dir>/book_data.json
 ### 3. Recall
 
 ```bash
-# Full AI prompt (send output to model)
-python3 scripts/recall.py <dir>/book_data.json --chapter <N> [--recent 3]
+# Recommended: summary mode (index-based AI prompt, no raw text)
+python3 scripts/recall.py <dir>/book_data.json --chapter <N> --format summary
 
-# Quick context summary (no AI needed)
+# Full AI prompt with recent chapter text (high token cost)
+python3 scripts/recall.py <dir>/book_data.json --chapter <N> --format prompt [--recent 3]
+
+# Quick context summary (no AI needed, just prints index data)
 python3 scripts/recall.py <dir>/book_data.json --chapter <N> --format context
 ```
 
-**Prompt mode** (`--format prompt`, default): Builds a structured prompt with:
-- Compressed timeline from index (all chapters 1..N)
-- Full text of last K chapters (default 3) for detail
-- Character roster + locations up to chapter N
-- Anti-spoiler instructions
-- Task instructions for the AI
+**Three formats:**
 
-**Context mode** (`--format context`): Prints index-only summary, no AI call needed.
+| Format | Default | AI Call | Includes Raw Text | Token Cost |
+|--------|---------|--------|-------------------|------------|
+| `summary` | ✅ Yes | 1 call | No (briefs only) | **Low** (~3-8K) |
+| `prompt` | | 1 call | Yes (last K chapters) | **High** (~8-27K) |
+| `context` | | None | No | **Zero** |
 
-The agent should run `recall.py`, capture the output, and send it as a prompt to generate the recall.
+- **`summary`** (recommended): Builds an AI prompt from index data only — character roster, locations, chapter briefs. Best balance of quality and cost.
+- **`prompt`**: Includes full text of recent chapters for maximum detail. Use for deep recall or when summary isn't detailed enough.
+- **`context`**: Prints raw index data as plain text. No AI needed. Good for quick reference.
 
 ## Anti-Spoiler Rules (Critical)
 
@@ -91,10 +95,13 @@ books/<name>/
 
 ## Recall Token Budget
 
-| Book size | Index | Recent 3ch | Total prompt |
-|-----------|-------|------------|-------------|
-| 100 chapters | ~3K tokens | ~5K tokens | ~8K |
-| 500 chapters | ~12K tokens | ~5K tokens | ~17K |
-| 1000 chapters | ~22K tokens | ~5K tokens | ~27K |
+| Book size | Format | Index | Recent text | Total prompt |
+|-----------|--------|-------|-------------|-------------|
+| 100 chapters | summary | ~3K | 0 | **~3K** |
+| 100 chapters | prompt | ~3K | ~5K | ~8K |
+| 500 chapters | summary | ~8K | 0 | **~8K** |
+| 500 chapters | prompt | ~12K | ~5K | ~17K |
+| 1000 chapters | summary | ~15K | 0 | **~15K** |
+| 1000 chapters | prompt | ~22K | ~5K | ~27K |
 
-For 500+ chapters, consider `--recent 2` to stay under 20K tokens.
+**Recommendation:** Use `summary` by default. Switch to `prompt` only when the reader needs granular detail about recent chapters.

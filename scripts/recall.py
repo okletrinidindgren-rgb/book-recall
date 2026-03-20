@@ -129,6 +129,87 @@ Keep the recall engaging and well-organized. Use headings and bullet points.
     return prompt
 
 
+def build_summary_prompt(
+    book_index: dict,
+    current_chapter: int,
+) -> str:
+    """Build a mid-weight AI prompt using only index data (no full chapter text).
+
+    Includes: character roster, location roster, compressed timeline with briefs.
+    Much cheaper than 'prompt' mode (no raw chapter text), but richer than 'context'.
+    """
+    title = book_index.get("title", "Untitled")
+    lang = book_index.get("language", "zh")
+    total = book_index.get("total_chapters", 0)
+
+    # ── Characters ──
+    char_freq = {}
+    for ch_idx in book_index.get("chapters", []):
+        if ch_idx["number"] > current_chapter:
+            break
+        for name in ch_idx.get("characters", []):
+            char_freq[name] = char_freq.get(name, 0) + 1
+    top_characters = sorted(char_freq.items(), key=lambda x: -x[1])[:25]
+
+    # ── Locations ──
+    loc_freq = {}
+    for ch_idx in book_index.get("chapters", []):
+        if ch_idx["number"] > current_chapter:
+            break
+        for loc in ch_idx.get("locations", []):
+            loc_freq[loc] = loc_freq.get(loc, 0) + 1
+    top_locations = sorted(loc_freq.items(), key=lambda x: -x[1])[:10]
+
+    # ── Timeline (brief only, no full text) ──
+    timeline_lines = []
+    for ch_idx in book_index.get("chapters", []):
+        if ch_idx["number"] > current_chapter:
+            break
+        chars_str = ", ".join(ch_idx.get("characters", [])[:4])
+        brief = ch_idx.get("brief", "")[:150]
+        timeline_lines.append(
+            f"Ch.{ch_idx['number']} [{ch_idx['title']}] — {brief}... [{chars_str}]"
+        )
+
+    lang_instruction = {
+        "zh": "请用中文回复。",
+        "en": "Reply in English.",
+        "mixed": "Reply in the same language as the book's primary text.",
+    }.get(lang, "Reply in the same language as the book.")
+
+    prompt = f"""You are a spoiler-free reading companion for "{title}".
+The reader is at **Chapter {current_chapter}** of {total}.
+
+**ANTI-SPOILER:** NEVER reference anything after Chapter {current_chapter}.
+
+{lang_instruction}
+
+## Characters (chapters 1–{current_chapter})
+
+{chr(10).join(f"- **{name}** ({count} chapters)" for name, count in top_characters)}
+
+## Locations
+
+{chr(10).join(f"- **{loc}** ({count}x)" for loc, count in top_locations) if top_locations else "- (none extracted)"}
+
+## Chapter Timeline
+
+{chr(10).join(timeline_lines)}
+
+---
+
+**Task:** Provide a comprehensive, engaging recall:
+1. **Character guide** — main characters, roles, relationships
+2. **Plot summary** — major arcs from Ch.1 to Ch.{current_chapter}
+3. **Recent events** — what happened in the last few chapters
+4. **Unresolved mysteries** — threads the reader should track
+5. **Key moments** — important revelations, twists, emotional beats
+
+Use headings and bullet points. Be vivid but concise.
+"""
+    return prompt
+
+
 def build_context_only(
     book_index: dict,
     current_chapter: int,
@@ -161,8 +242,10 @@ def main():
     parser.add_argument("book_data", help="Path to book_data.json")
     parser.add_argument("--chapter", "-c", type=int, required=True, help="Current reading position")
     parser.add_argument("--recent", "-r", type=int, default=3, help="Number of recent chapters to include in full (default: 3)")
-    parser.add_argument("--format", "-f", choices=["prompt", "context"], default="prompt",
-                        help="Output format: 'prompt' (full AI prompt) or 'context' (index-only summary)")
+    parser.add_argument("--format", "-f", choices=["prompt", "summary", "context"], default="summary",
+                        help="Output format: 'prompt' (full AI prompt with recent chapter text), "
+                             "'summary' (AI prompt from index only, no raw text — recommended), "
+                             "or 'context' (index-only plain text, no AI needed)")
     parser.add_argument("--index", "-i", help="Path to book_index.json (default: same dir as book_data)")
     args = parser.parse_args()
 
@@ -182,6 +265,8 @@ def main():
 
     if args.format == "context":
         print(build_context_only(book_index, args.chapter))
+    elif args.format == "summary":
+        print(build_summary_prompt(book_index, args.chapter))
     else:
         print(build_recall_prompt(book_data, book_index, args.chapter, args.recent))
 
