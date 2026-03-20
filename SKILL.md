@@ -29,6 +29,8 @@ python3 scripts/parse_book.py <file_path> --output <output_dir> [--title "Book T
 - Default output dir: `~/.openclaw/workspace/books/<book_name>/`
 - Produces `book_data.json` with chapter-segmented text
 - Print the chapter list so the user can confirm parsing quality
+- If the filename is garbled (common from chat platforms), the script warns and sets title to "Untitled". **Always ask the user for the correct book title** and pass `--title`.
+- **Never guess or fabricate a book title or author** — if unknown, ask the user.
 
 **Dependencies** (install if missing):
 - EPUB: `pip3 install ebooklib beautifulsoup4 lxml`

@@ -169,7 +169,23 @@ def main():
         sys.exit(1)
 
     ext = Path(file_path).suffix.lower()
-    book_name = args.title or Path(file_path).stem
+    raw_stem = Path(file_path).stem
+
+    # Detect garbled filenames (common when files come from chat platforms)
+    def is_garbled(name: str) -> bool:
+        """Check if filename looks like garbled encoding."""
+        # High ratio of replacement chars, underscores, or non-printable chars
+        suspicious = sum(1 for c in name if c in ('_', '\ufffd', '�') or not c.isprintable())
+        return len(name) > 5 and suspicious / len(name) > 0.3
+
+    if args.title:
+        book_name = args.title
+    elif is_garbled(raw_stem):
+        print(f"⚠️  Filename appears garbled: {raw_stem}", file=sys.stderr)
+        print(f"   Please re-run with --title 'Book Title' to set the correct name.", file=sys.stderr)
+        book_name = "Untitled"
+    else:
+        book_name = raw_stem
 
     print(f"Parsing: {file_path} ({ext})")
 
