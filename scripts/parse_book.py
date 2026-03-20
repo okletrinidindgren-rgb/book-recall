@@ -66,7 +66,7 @@ def parse_epub(file_path: str) -> list[dict]:
             "number": chapter_num,
             "title": title,
             "text": text,
-            "word_count": len(text.split()),
+            "word_count": len(text) if any('\u4e00' <= c <= '\u9fff' for c in text[:200]) else len(text.split()),
         })
 
     return chapters
@@ -125,19 +125,35 @@ def split_into_chapters(text: str) -> list[dict]:
     boundaries = deduped
 
     if len(boundaries) < 2:
-        # Can't find chapter markers, split by fixed size (~3000 words)
-        words = text.split()
-        chunk_size = 3000
-        chapters = []
-        for i in range(0, len(words), chunk_size):
-            chunk = " ".join(words[i : i + chunk_size])
-            chapters.append({
-                "number": len(chapters) + 1,
-                "title": f"Section {len(chapters) + 1}",
-                "text": chunk,
-                "word_count": min(chunk_size, len(words) - i),
-            })
-        return chapters
+        # Can't find chapter markers — split by fixed size
+        is_cjk = any('\u4e00' <= c <= '\u9fff' for c in text[:500])
+        if is_cjk:
+            # CJK: split by ~3000 characters
+            chunk_size = 3000
+            chapters = []
+            for i in range(0, len(text), chunk_size):
+                chunk = text[i : i + chunk_size]
+                chapters.append({
+                    "number": len(chapters) + 1,
+                    "title": f"Section {len(chapters) + 1}",
+                    "text": chunk,
+                    "word_count": len(chunk),
+                })
+            return chapters
+        else:
+            # English: split by ~3000 words
+            words = text.split()
+            chunk_size = 3000
+            chapters = []
+            for i in range(0, len(words), chunk_size):
+                chunk = " ".join(words[i : i + chunk_size])
+                chapters.append({
+                    "number": len(chapters) + 1,
+                    "title": f"Section {len(chapters) + 1}",
+                    "text": chunk,
+                    "word_count": min(chunk_size, len(words) - i),
+                })
+            return chapters
 
     # Split text at boundaries
     chapters = []
@@ -146,11 +162,13 @@ def split_into_chapters(text: str) -> list[dict]:
         chapter_text = text[pos:end].strip()
         if len(chapter_text) < 50:
             continue
+        is_cjk = any('\u4e00' <= c <= '\u9fff' for c in chapter_text[:200])
+        wc = len(chapter_text) if is_cjk else len(chapter_text.split())
         chapters.append({
             "number": i + 1,
             "title": title,
             "text": chapter_text,
-            "word_count": len(chapter_text.split()),
+            "word_count": wc,
         })
 
     return chapters

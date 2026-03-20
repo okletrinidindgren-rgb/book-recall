@@ -62,6 +62,22 @@ def is_valid_chinese_name(name: str) -> bool:
     if people_pattern.match(name):
         return False
 
+    # Reject "X的人" patterns (e.g. "大的人", "有的人")
+    if re.match(r'^.+的人$', name):
+        return False
+
+    # Reject "X人" where X is a generic descriptor (e.g. "年轻人", "众人")
+    generic_people = re.compile(
+        r'^(?:年轻|中年|老年|陌生|普通|成年|未成年|年迈|正常|神秘|可怜|无辜|聪明|愚蠢)人$'
+    )
+    if generic_people.match(name):
+        return False
+
+    if name in ("众人", "路人", "常人", "凡人", "真人", "仙人", "妖人", "友人", "情人",
+                "恋人", "爱人", "故人", "主人", "家人", "亲人", "商人", "工人", "军人",
+                "猎人", "艺人", "证人", "犯人", "囚人", "醉人", "诗人", "世人", "古人"):
+        return False
+
     if len(name) == 2 and name.endswith("人") and name[0] in "骗杀死活救伤打惹吓好坏找帮害怕烦选领跟":
         return False
 
@@ -72,7 +88,7 @@ def is_valid_chinese_name(name: str) -> bool:
         return False
 
     short_noise = re.compile(
-        r'^(?:一[声下次些番把]|的人|其[他她]人|所有人|每个人|这[些个种]|那[些个种]|有[些人])$'
+        r'^(?:一[声下次些番把]|的人|其[他她]人|所有人|每个人|这[些个种]|那[些个种]|有[些人]|的众人)$'
     )
     if short_noise.match(name):
         return False
@@ -126,14 +142,33 @@ def extract_chinese_nicknames(text: str) -> list[str]:
 def extract_chinese_locations(text: str) -> list[str]:
     """Extract Chinese location mentions."""
     loc_pattern = re.compile(
-        r'([\u4e00-\u9fff]{2,5}(?:市|省|区|县|镇|村|街道|大道|路|大楼|楼|手术室|教室|房间|医院|寺|塔|山|河|湖|海|岛|洞|谷|城市|城|国|酒店|餐馆|学校|广场|公园|大厅|宫殿|庙|桥|车站|机场|工厂))'
+        r'([\u4e00-\u9fff]{2,5}(?:市|省|区|县|镇|村|街道|大道|大楼|楼|手术室|教室|房间|医院|寺|塔|山|河|湖|岛|洞|谷|城市|城|国|酒店|餐馆|学校|广场|公园|大厅|宫殿|庙|桥|车站|机场|工厂))'
     )
+    # Stricter patterns for ambiguous suffixes (路, 海)
+    strict_road = re.compile(r'([\u4e00-\u9fff]{2,4}(?:路|街))\s*(?:\d|号|口|边|旁|上)')
+    strict_sea = re.compile(r'([\u4e00-\u9fff]{1,3}海)(?:边|岸|滩|面|域|峡|湾|港)')
+
+    # Known false-positive patterns for 路/海
+    road_noise = re.compile(r'(?:思路|出路|退路|后路|活路|死路|财路|来路|去路|门路|套路|线路|路线|老路|弯路|走路|迷路|带路|赶路|赶路|上路|跑路|让路|问路|修路|铺路|挡路|堵路|岔路|近路|远路|窄路|宽路|通路|歧路|正路|邪路|绝路)')
+    sea_noise = re.compile(r'(?:脑海|人海|苦海|火海|学海|书海|花海|云海|林海|商海|宦海|情海|欲海)')
+
     found = Counter()
     for m in loc_pattern.finditer(text):
         loc = m.group(1)
         if loc[0] in "我你他她它们的在是有被让给向从把将":
             continue
         found[loc] += 1
+
+    for m in strict_road.finditer(text):
+        loc = m.group(1)
+        if not road_noise.search(loc):
+            found[loc] += 1
+
+    for m in strict_sea.finditer(text):
+        loc = m.group(1)
+        if not sea_noise.search(loc):
+            found[loc] += 1
+
     return [loc for loc, _ in found.most_common(10)]
 
 
