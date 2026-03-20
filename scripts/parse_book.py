@@ -160,6 +160,7 @@ def main():
     parser = argparse.ArgumentParser(description="Parse book into chapter-segmented JSON")
     parser.add_argument("file", help="Path to EPUB, PDF, or TXT file")
     parser.add_argument("--output", "-o", help="Output directory (default: same dir as input)")
+    parser.add_argument("--title", "-t", help="Book title (default: inferred from filename)")
     args = parser.parse_args()
 
     file_path = os.path.expanduser(args.file)
@@ -168,7 +169,7 @@ def main():
         sys.exit(1)
 
     ext = Path(file_path).suffix.lower()
-    book_name = Path(file_path).stem
+    book_name = args.title or Path(file_path).stem
 
     print(f"Parsing: {file_path} ({ext})")
 

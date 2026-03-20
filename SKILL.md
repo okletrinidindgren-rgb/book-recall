@@ -23,7 +23,7 @@ A spoiler-free reading companion. Parse books into chapters, generate detailed s
 When the user provides a book file (EPUB, PDF, or TXT):
 
 ```bash
-python3 scripts/parse_book.py <file_path> --output <output_dir>
+python3 scripts/parse_book.py <file_path> --output <output_dir> [--title "Book Title"]
 ```
 
 - Default output dir: `~/.openclaw/workspace/books/<book_name>/`
