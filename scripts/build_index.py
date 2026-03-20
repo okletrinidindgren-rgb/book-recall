@@ -17,26 +17,60 @@ import os
 from collections import Counter
 
 def is_valid_name(name: str) -> bool:
-    """Filter out common non-name Chinese phrases."""
-    noise = set("点点头,了点头,摇摇头,了摇头,起眉头,着眉头,抬起头,回过头,了口气,着眼睛,"
-                "二人,一声,三个人,四个人,两个人,五个人,六个人,七个人,八个人,九个人,十个人,"
-                "的人,整个人,这些人,任何人,那些人,有些人,几个人,某个人,每个人,"
-                "骗人,杀人,死人,活人,救人,伤人,打人,惹人,吓人,好人,坏人,"
-                "不是,可是,但是,如果,因为,所以,而且,或者,虽然,就是,这个,那个,"
-                "什么,怎么,为什么,他们,我们,你们,自己,这样,那样,所有,没有,"
-                "已经,现在,应该,只是,还是,这种,那种,一个,一样,只能,不能,不会,"
-                "一直,毕竟,于是,然后,随即,忽然,居然,竟然,不过,只要,否则,"
-                "至于,不仅,也许,或许,大家,众人,所有人,每个人,"
-                "不远处,这座城,我们所,备战区".split(","))
+    """Filter out common non-name Chinese phrases using generic language rules.
     
-    action_suffixes = ("说", "道", "想", "站", "坐", "走", "跑", "来", "去", "过", "着", "了", "呢", "吗", "吧")
-    
-    if name in noise:
+    NOTE: This must be book-agnostic. Do NOT add book-specific names or terms here.
+    Only use universal Chinese grammar/vocabulary patterns.
+    """
+    # --- Rule 1: Common function words (conjunctions, pronouns, adverbs, etc.) ---
+    function_words = set(
+        "不是,可是,但是,如果,因为,所以,而且,或者,虽然,就是,这个,那个,"
+        "什么,怎么,为什么,他们,我们,你们,自己,这样,那样,所有,没有,"
+        "已经,现在,应该,只是,还是,这种,那种,一个,一样,只能,不能,不会,"
+        "一直,毕竟,于是,然后,随即,忽然,居然,竟然,不过,只要,否则,"
+        "至于,不仅,也许,或许,大家,众人".split(",")
+    )
+    if name in function_words:
         return False
+    
+    # --- Rule 2: Ends with action verb/particle (e.g. "齐夏说" is not a name) ---
+    action_suffixes = ("说", "道", "想", "站", "坐", "走", "跑", "来", "去",
+                       "过", "着", "了", "呢", "吗", "吧", "的", "地", "得")
     if len(name) >= 2 and name.endswith(action_suffixes):
         return False
+    
+    # --- Rule 3: Common "verb+body part" patterns (点点头, 皱眉头, etc.) ---
+    body_action_patterns = re.compile(
+        r'^(?:点点|摇摇|了点|了摇|起眉|着眉|抬起|回过|低下|扭过|了口|着眼|皱眉)'
+    )
+    if body_action_patterns.match(name):
+        return False
+    
+    # --- Rule 4: Quantifier + 人 patterns (三个人, 每个人, etc.) ---
+    people_pattern = re.compile(r'^[\u4e00-\u9fff]*(?:个|些|有|所有|每|任何|整|几|两|这|那)人$')
+    if people_pattern.match(name):
+        return False
+    
+    # --- Rule 5: "X人" where X is a common verb (骗人, 杀人, etc.) ---
+    if len(name) == 2 and name.endswith("人") and name[0] in "骗杀死活救伤打惹吓好坏找帮害怕烦选领跟":
+        return False
+    
+    # --- Rule 6: Pure number words ---
     if all(c in "一二三四五六七八九十百千万个两几多少" for c in name):
         return False
+    
+    # --- Rule 7: Starts with pronoun/preposition (not a name) ---
+    if name[0] in "我你他她它们":
+        return False
+    
+    # --- Rule 8: Common short non-name phrases ---
+    # "一声", "的人", "其他人", etc. — generic measure/particle combos
+    short_noise = re.compile(
+        r'^(?:一[声下次些番把]|的人|其[他她]人|所有人|每个人|这[些个种]|那[些个种]|有[些人])$'
+    )
+    if short_noise.match(name):
+        return False
+    
     return True
 
 
@@ -66,12 +100,10 @@ def extract_chinese_names(text: str) -> list[str]:
         if name[0] in surnames:
             candidates[name] += 1
     
-    # Filter: must appear 2+ times, exclude common non-name phrases
-    stop_words = set("不是,可是,但是,如果,因为,所以,而且,或者,虽然,就是,这个,那个,什么,怎么,为什么,他们,我们,你们,自己,这样,那样,所有,没有,已经,现在,应该,只是,还是,这种,那种,一个,一样,只能,不能,不会,一直,毕竟,于是,然后,随即,忽然,居然,竟然,不过,只要,否则,毕竟,至于,不仅,也许,或许,大家,众人,所有人,每个人,点点头,了点头,摇摇头,了摇头,起眉头,着眉头,抬起头,回过头,二人,一声,三个人,四个人,两个人,五个人,六个人,七个人,八个人,九个人,十个人,的人,整个人,这些人,任何人,那些人,有些人,几个人,某个人,每个人,骗人,杀人,死人,活人,救人,伤人,打人,惹人,吓人,好人,坏人".split(","))
-    
+    # Filter: must appear 2+ times, pass generic name validation
     names = []
     for name, count in candidates.most_common(50):
-        if count >= 2 and name not in stop_words and len(name) <= 3:
+        if count >= 2 and len(name) <= 3 and is_valid_name(name):
             names.append(name)
     
     return names[:20]  # Top 20 per chapter
@@ -88,8 +120,12 @@ def extract_nicknames_and_descriptors(text: str) -> list[str]:
         for m in re.finditer(p, text):
             found[m.group(1)] += 1
     
-    stop = set("众人,男人,女人,所有人,每个人,一个人,其他人,其余人,死人,别人,旁人,下面,上面,里面,外面,那人,这人,本人,个人,几人,二人,三人,四人,五人,六人,七人,八人,九人,十人,老人,敌人,大人,小人,友人,两人".split(","))
-    return [w for w, c in found.most_common(20) if c >= 2 and w not in stop]
+    # Use generic patterns — no book-specific terms
+    stop = set("众人,男人,女人,别人,旁人,老人,敌人,大人,小人,本人,个人".split(","))
+    # Also filter generic quantifier patterns: 二人, 几人, 两人, etc.
+    quant_people = re.compile(r'^[一二三四五六七八九十百千两几多数]人$')
+    return [w for w, c in found.most_common(20) 
+            if c >= 2 and w not in stop and not quant_people.match(w)]
 
 
 def extract_locations(text: str) -> list[str]:
