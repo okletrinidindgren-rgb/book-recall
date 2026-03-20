@@ -1,3 +1,5 @@
+[English](README.md) | [中文](README_CN.md)
+
 # book-recall 📖🧠
 
 无剧透的 AI 阅读伴侣。帮你回忆之前的剧情，绝不泄露后面的内容。

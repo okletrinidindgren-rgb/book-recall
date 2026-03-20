@@ -1,3 +1,5 @@
+[English](README.md) | [中文](README_CN.md)
+
 # book-recall 📖🧠
 
 A spoiler-free AI reading companion. Never forget what happened in earlier chapters — without getting anything spoiled.
