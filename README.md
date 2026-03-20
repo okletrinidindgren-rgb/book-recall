@@ -65,13 +65,13 @@ sudo apt install poppler-utils  # Linux
 
 ```bash
 # 1️⃣ 解析书籍 → 章节 JSON
-python3 scripts/parse_book.py 三体.epub --output ./books/santi/ --title "三体"
+python3 scripts/parse_book.py mybook.epub --output ./books/mybook/ --title "书名"
 
 # 2️⃣ 构建索引（本地运行，零 AI 成本）
-python3 scripts/build_index.py ./books/santi/book_data.json
+python3 scripts/build_index.py ./books/mybook/book_data.json
 
 # 3️⃣ 我读到第 30 章了，帮我回忆！
-python3 scripts/recall.py ./books/santi/book_data.json --chapter 30
+python3 scripts/recall.py ./books/mybook/book_data.json --chapter 30
 ```
 
 ---
@@ -82,7 +82,8 @@ python3 scripts/recall.py ./books/santi/book_data.json --chapter 30
 |------|--------|--------|---------|
 | ❌ 全文喂给 AI | ~500K tokens | ~2.5M tokens | ~5M tokens |
 | ❌ 逐章预摘要 | 100 次调用 | 500 次调用 | 1000 次调用 |
-| ✅ **book-recall** | **~8K tokens, 1 次调用** | **~17K tokens, 1 次调用** | **~27K tokens, 1 次调用** |
+| ✅ **book-recall** (summary) | **~3K tokens, 1 次调用** | **~8K tokens, 1 次调用** | **~15K tokens, 1 次调用** |
+| ✅ **book-recall** (prompt) | ~8K tokens, 1 次调用 | ~17K tokens, 1 次调用 | ~27K tokens, 1 次调用 |
 
 ---
 
@@ -99,7 +100,7 @@ python3 scripts/recall.py ./books/santi/book_data.json --chapter 30
 ## 📁 文件结构
 
 ```
-books/三体/
+books/<书名>/
 ├── book_data.json       # 全文章节数据（较大）
 └── book_index.json      # 轻量索引（~19%）
 ```
