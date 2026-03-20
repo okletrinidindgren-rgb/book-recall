@@ -1,72 +1,56 @@
 [English](README.md) | [中文](README_CN.md)
 
-# book-recall 📖🧠
+# 📖 book-recall
 
-A spoiler-free AI reading companion. Never forget what happened in earlier chapters — without getting anything spoiled.
+A spoiler-free AI reading companion for OpenClaw. Parse books into chapters, build lightweight local indexes, and recall plot on demand — without spoiling what's ahead.
 
-## The Problem
+## Architecture: Local-First, AI-Lite
 
-You're halfway through a long novel and can't remember who that character is, or what happened three chapters ago. You want to ask an AI, but you're afraid of spoilers.
+| Step | AI Cost | What it does |
+|------|---------|-------------|
+| **Parse** | 0 | Split EPUB/PDF/TXT into chapters → `book_data.json` |
+| **Index** | 0 | Extract characters, locations, briefs → `book_index.json` |
+| **Recall** | **1 call** | Read compressed index + recent chapters, generate recall |
 
-## The Solution
-
-**book-recall** parses your book into chapters, generates detailed summaries as you read, and gives you a full recap up to your current position — with **zero spoilers** from chapters you haven't read yet.
-
-## Features
-
-- 📚 **Import books** — EPUB, PDF, TXT support
-- 📝 **Chapter summaries** — detailed, spoiler-free, in the book's original language
-- 👤 **Character tracking** — automatically tracks who's who and when they appear
-- 📅 **Event timeline** — key events tagged by chapter
-- 🚫 **Anti-spoiler** — strict rules ensure nothing from future chapters leaks
-- 🔖 **Progress tracking** — knows where you left off
+**Old approach:** Pre-summarize every chapter = 100 AI calls for 100 chapters.
+**New approach:** Local index + on-demand recall = 1 AI call regardless of chapter count.
 
 ## Quick Start
 
-### 1. Parse a book
-
 ```bash
-python3 scripts/parse_book.py my_book.epub --output ./my_book/
+# 1. Parse a book
+python3 scripts/parse_book.py mybook.txt --output ./books/mybook/ --title "My Book"
+
+# 2. Build index (zero AI cost, takes seconds)
+python3 scripts/build_index.py ./books/mybook/book_data.json
+
+# 3. Ask the AI: "I'm on chapter 50, what happened so far?"
+#    → AI reads index + last few chapters, generates recall in one shot
 ```
 
-### 2. Generate summaries (up to chapter N)
+## Features
 
-```bash
-# Get the AI prompt for a chapter
-python3 scripts/summarize_chapters.py ./my_book/book_data.json --prompt-for 1
+- 📚 Supports **EPUB**, **PDF**, and **TXT** formats
+- 🔍 Local NLP extraction: character names, locations, chapter briefs
+- 🚫 **Strict anti-spoiler**: never references content beyond your reading position
+- 💰 **Minimal AI cost**: one call per recall, not one per chapter
+- 🌍 **Multi-language**: summaries follow the original text's language
+- 📊 Compression: ~19% of original file size for the index
 
-# Save the AI's response
-python3 scripts/summarize_chapters.py ./my_book/book_data.json \
-  --save-summary 1 \
-  --summary-json '{"summary":"...","key_events":["..."],"new_characters":[{"name":"...","description":"..."}]}'
-```
+## How Recall Works
 
-### 3. Recall everything up to your position
+When you say "I'm on chapter 100":
 
-```bash
-python3 scripts/summarize_chapters.py ./my_book/book_data.json --recall 5
-```
-
-Output includes:
-- Characters you've met
-- Key events timeline
-- Chapter-by-chapter summaries
-
-### 4. Check status
-
-```bash
-python3 scripts/summarize_chapters.py ./my_book/book_data.json
-```
+1. Load the lightweight index (~200KB for a 1000-chapter book)
+2. Gather chapter titles, character appearances, briefs up to your position
+3. Load full text of only the last 3-5 chapters
+4. Send ONE prompt to AI → get character roster, plot arcs, detailed recent summary
 
 ## Dependencies
 
 - Python 3.10+
-- EPUB: `pip3 install ebooklib beautifulsoup4 lxml`
-- PDF: `pdftotext` (from `poppler-utils` / `brew install poppler`)
-
-## Designed for AI Agents
-
-This is an [OpenClaw](https://github.com/openclaw/openclaw) skill. Install it and your AI agent will automatically use it when you send a book file and ask for reading help.
+- EPUB support: `pip3 install ebooklib beautifulsoup4 lxml`
+- PDF support: `pdftotext` (from `poppler-utils`)
 
 ## License
 

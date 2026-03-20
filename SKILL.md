@@ -2,9 +2,9 @@
 name: book-recall
 description: >
   Reading companion that helps recall previous plot without spoilers.
-  Import an EPUB/PDF/TXT book, parse it by chapters, generate detailed
-  per-chapter summaries with character tracking, and recall everything
-  up to your current reading position — never spoiling what's ahead.
+  Import an EPUB/PDF/TXT book, parse it by chapters, build a local
+  index (zero AI cost), then recall plot on demand using compressed
+  context + minimal AI calls.
   Use when: (1) user sends a book file and wants reading support,
   (2) user says "I'm on chapter N, what happened before?",
   (3) user asks about characters or plot points from earlier chapters,
@@ -14,105 +14,114 @@ description: >
 
 # book-recall
 
-A spoiler-free reading companion. Parse books into chapters, generate detailed summaries, track characters, and recall previous plot on demand.
+A spoiler-free reading companion. Parse books, build lightweight indexes locally, and recall plot on demand with minimal AI cost.
+
+## Architecture: Local-First, AI-Lite
+
+| Step | AI Cost | Description |
+|------|---------|-------------|
+| 1. Parse book | 0 | Split into chapters → `book_data.json` |
+| 2. Build index | 0 | Extract characters, locations, brief per chapter → `book_index.json` |
+| 3. Recall | **1 call** | Read index + recent chapters, generate recall in one shot |
+
+**Key principle:** Scripts do the heavy lifting locally. AI is only invoked when the user asks for a recall.
 
 ## Workflow
 
 ### 1. Import a Book
 
-When the user provides a book file (EPUB, PDF, or TXT):
-
 ```bash
 python3 scripts/parse_book.py <file_path> --output <output_dir> [--title "Book Title"]
 ```
 
-- Default output dir: `~/.openclaw/workspace/books/<book_name>/`
+- Default output: `~/.openclaw/workspace/books/<book_name>/`
 - Produces `book_data.json` with chapter-segmented text
-- Print the chapter list so the user can confirm parsing quality
-- If the filename is garbled (common from chat platforms), the script warns and sets title to "Untitled". **Always ask the user for the correct book title** and pass `--title`.
-- **Never guess or fabricate a book title or author** — if unknown, ask the user.
+- If filename is garbled, script warns and sets "Untitled". **Always ask user for correct title.**
+- **Never guess or fabricate a book title or author.**
 
 **Dependencies** (install if missing):
 - EPUB: `pip3 install ebooklib beautifulsoup4 lxml`
 - PDF: `pdftotext` (from `poppler-utils` / `brew install poppler`)
 
-### 2. Generate Chapter Summaries
-
-Summarize chapters **sequentially** up to the user's current reading position. Never summarize ahead.
-
-**For each unsummarized chapter:**
-
-1. Get the prompt:
-   ```bash
-   python3 scripts/summarize_chapters.py <book_data.json> --prompt-for <N>
-   ```
-2. The prompt includes the chapter text + all previous summaries for context. Send this to the AI model.
-3. The AI returns a JSON with `summary`, `key_events`, `new_characters`.
-4. Save the result:
-   ```bash
-   python3 scripts/summarize_chapters.py <book_data.json> --save-summary <N> --summary-json '<json_string>'
-   ```
-
-**Important:** Process chapters one at a time, in order. Each summary builds on previous ones.
-
-**Batch shortcut** — to see all pending prompts up to chapter N:
-```bash
-python3 scripts/summarize_chapters.py <book_data.json> --up-to <N>
-```
-
-### 3. Recall (The Core Feature)
-
-When the user says "I'm on chapter N" or "帮我回忆前面的剧情":
+### 2. Build Index (Zero AI Cost)
 
 ```bash
-python3 scripts/summarize_chapters.py <book_data.json> --recall <N>
+python3 scripts/build_index.py <book_data.json>
 ```
 
-This outputs:
-- **Character roster** — all characters met so far with descriptions
-- **Key events timeline** — chronological bullet points tagged by chapter
-- **Chapter-by-chapter summaries** — detailed recap
+Produces `book_index.json` (~19% of original size) containing per-chapter:
+- `brief` — first 200 chars
+- `first_line` / `last_line` — orientation markers
+- `characters` — extracted character names
+- `locations` — extracted place names
 
-Present this to the user in a readable format. **Never include anything from chapters after N.**
+Plus global stats: top characters by frequency, top locations.
 
-### 4. Check Status
+**Run this once after parsing.** Takes seconds even for 1000+ chapter books.
 
-```bash
-python3 scripts/summarize_chapters.py <book_data.json>
-```
+### 3. Recall (The Core Feature) — On Demand
 
-Shows: book title, total chapters, words, current position, summarization progress, character count.
+When the user says "I'm on chapter N" or "帮我回忆":
+
+**Strategy: Compressed context, single AI call.**
+
+1. Load `book_index.json` (lightweight, ~200KB for 1000ch book)
+2. From the index, gather for chapters 1 to N:
+   - Chapter titles + briefs (compressed timeline)
+   - Characters mentioned per chapter
+   - Global character frequency up to chapter N
+3. Load **full text** of the last 3-5 chapters only (for detail)
+4. Send ONE prompt to AI with all the above, asking for:
+   - Character roster with descriptions
+   - Key plot arcs / game arcs
+   - Detailed summary of recent chapters
+   - Brief timeline of earlier chapters
+5. Present the recall to the user
+
+**Token budget:** ~5-10K input tokens for index + recent chapters, vs 200K+ for all chapters.
+
+### 4. What If User Asks About a Specific Earlier Chapter?
+
+Load that chapter's full text from `book_data.json` + surrounding index context.
+Send ONE prompt. No pre-computation needed.
 
 ## Anti-Spoiler Rules (CRITICAL)
 
 1. **NEVER** reference content from chapters beyond the user's stated position.
 2. **NEVER** hint at future plot developments, even vaguely.
-3. If the user asks "will X happen?" — respond: "I can't answer that without spoiling. Keep reading! 📖"
-4. Summaries are generated **only** for chapters ≤ current position.
-5. When uncertain whether something is a spoiler, err on the side of caution.
+3. If asked "will X happen?" → "I can't answer that without spoiling. Keep reading! 📖"
+4. Only load/read chapters ≤ current position.
+5. When uncertain, err on the side of caution.
 
 ## Summary Quality Guidelines
 
-Each chapter summary should include:
-- **Plot progression** — what happened, in order
-- **Character actions & motivations** — what each character did and why
-- **Emotional beats** — mood, tension, revelations
-- **Important dialogue** — key quotes or conversations (paraphrased)
-- **Setting changes** — new locations or time jumps
+When generating recall, include:
+- **Plot progression** — what happened, key games/arcs
+- **Character roster** — who appeared, roles, relationships
+- **Emotional beats** — tension, revelations, twists
+- **Key dialogue** — important conversations (paraphrased)
+- **Setting** — locations, world-building details
 
-Summaries follow the **original text's language** (English book → English summary, 中文书 → 中文摘要).
+Summaries follow the **original text's language**.
 
 ## File Structure
 
 ```
 ~/.openclaw/workspace/books/<book_name>/
-├── book_data.json       # Parsed chapters + summaries + characters
-└── <original_file>      # Copy of the source book (optional)
+├── book_data.json       # Full chapter text (large)
+├── book_index.json      # Lightweight index (small, ~19% of original)
 ```
+
+## Cost Comparison
+
+| Approach | Chapters | AI Calls | Tokens |
+|----------|----------|----------|--------|
+| ❌ Old: pre-summarize all | 100 | 100 | ~500K |
+| ✅ New: index + on-demand | 100 | 1 | ~8K |
 
 ## Limitations
 
-- Large books (50+ chapters) may take time to summarize — do it incrementally as the user reads.
-- PDF parsing quality depends on the PDF structure; scanned PDFs need OCR.
-- Chapter detection uses heuristics; user may need to confirm chapter boundaries.
-- DRM-protected files are not supported.
+- Index character extraction uses heuristics — may miss some names or include noise
+- PDF parsing depends on structure; scanned PDFs need OCR
+- Chapter detection uses regex heuristics; user may need to confirm boundaries
+- Very long recall ranges (500+ chapters) may need chunked prompts
