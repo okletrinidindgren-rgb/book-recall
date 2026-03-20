@@ -6,3 +6,5 @@ book_data.json
 *.epub
 *.pdf
 books/
+__pycache__/
+*.pyc

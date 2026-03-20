@@ -74,14 +74,6 @@ python3 scripts/recall.py <dir>/book_data.json --chapter <N> --format context
 
 The agent should run `recall.py`, capture the output, and send it as a prompt to generate the recall.
 
-### 4. Optional: Pre-summarize chapters
-
-```bash
-python3 scripts/summarize_chapters.py <dir>/book_data.json --prompt-for <N>
-```
-
-This is **optional**. Use only when the user wants persistent per-chapter summaries stored in `book_data.json`. Not needed for the standard recall flow.
-
 ## Anti-Spoiler Rules (Critical)
 
 1. **NEVER** load or reference content beyond the user's stated chapter position
