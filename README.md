@@ -2,18 +2,21 @@
 
 # 📖 book-recall
 
-A spoiler-free AI reading companion for OpenClaw. Parse books into chapters, build lightweight local indexes, and recall plot on demand — without spoiling what's ahead.
+A spoiler-free AI reading companion for [OpenClaw](https://github.com/openclaw/openclaw). Parse books into chapters, build lightweight local indexes, and recall plot on demand — never spoiling what's ahead.
 
-## Architecture: Local-First, AI-Lite
+## How It Works
 
-| Step | AI Cost | What it does |
-|------|---------|-------------|
-| **Parse** | 0 | Split EPUB/PDF/TXT into chapters → `book_data.json` |
-| **Index** | 0 | Extract characters, locations, briefs → `book_index.json` |
-| **Recall** | **1 call** | Read compressed index + recent chapters, generate recall |
+```
+┌──────────┐     ┌──────────┐     ┌──────────┐
+│  Parse   │────▶│  Index   │────▶│  Recall  │
+│ EPUB/PDF │     │  (local) │     │ (1 call) │
+│   TXT    │     │  0 cost  │     │ on demand│
+└──────────┘     └──────────┘     └──────────┘
+```
 
-**Old approach:** Pre-summarize every chapter = 100 AI calls for 100 chapters.
-**New approach:** Local index + on-demand recall = 1 AI call regardless of chapter count.
+1. **Parse** — Split your book into chapters (`book_data.json`)
+2. **Index** — Extract characters, locations, chapter briefs locally — zero AI cost, runs in seconds
+3. **Recall** — When you ask "what happened before chapter N?", the AI reads the compressed index + last few chapters and generates a full recall in **one single call**
 
 ## Quick Start
 
@@ -21,36 +24,32 @@ A spoiler-free AI reading companion for OpenClaw. Parse books into chapters, bui
 # 1. Parse a book
 python3 scripts/parse_book.py mybook.txt --output ./books/mybook/ --title "My Book"
 
-# 2. Build index (zero AI cost, takes seconds)
+# 2. Build index (local, no AI needed)
 python3 scripts/build_index.py ./books/mybook/book_data.json
 
-# 3. Ask the AI: "I'm on chapter 50, what happened so far?"
-#    → AI reads index + last few chapters, generates recall in one shot
+# 3. Ask: "I'm on chapter 50, what happened so far?"
 ```
 
 ## Features
 
-- 📚 Supports **EPUB**, **PDF**, and **TXT** formats
-- 🔍 Local NLP extraction: character names, locations, chapter briefs
-- 🚫 **Strict anti-spoiler**: never references content beyond your reading position
-- 💰 **Minimal AI cost**: one call per recall, not one per chapter
-- 🌍 **Multi-language**: summaries follow the original text's language
-- 📊 Compression: ~19% of original file size for the index
+- 📚 **EPUB / PDF / TXT** — three formats supported out of the box
+- 🔍 **Local character & location extraction** — NLP heuristics, no AI tokens burned
+- 🚫 **Strict anti-spoiler** — never references anything beyond your reading position
+- 💰 **One AI call per recall** — compressed index keeps token usage minimal
+- 🌍 **Multi-language** — summaries follow the original text's language
+- 📊 **~18% compression** — a 1000-chapter book's index fits in ~200KB
 
-## How Recall Works
+## Anti-Spoiler Rules
 
-When you say "I'm on chapter 100":
-
-1. Load the lightweight index (~200KB for a 1000-chapter book)
-2. Gather chapter titles, character appearances, briefs up to your position
-3. Load full text of only the last 3-5 chapters
-4. Send ONE prompt to AI → get character roster, plot arcs, detailed recent summary
+- Content beyond your stated chapter position is **never** loaded or referenced
+- Asking "will X happen?" gets: *"I can't answer that without spoiling. Keep reading! 📖"*
+- When in doubt, the system errs on the side of caution
 
 ## Dependencies
 
 - Python 3.10+
-- EPUB support: `pip3 install ebooklib beautifulsoup4 lxml`
-- PDF support: `pdftotext` (from `poppler-utils`)
+- EPUB: `pip3 install ebooklib beautifulsoup4 lxml`
+- PDF: `pdftotext` (from `poppler-utils` / `brew install poppler`)
 
 ## License
 
