@@ -27,6 +27,24 @@ Spoiler-free reading companion. Parse → Index → Recall.
 
 **Language support:** Auto-detects Chinese / English / mixed. Character and location extraction works for both.
 
+## Agent Recall Procedure (MUST FOLLOW)
+
+When user asks to recall plot (e.g. "帮我回忆", "我读到第N章"):
+
+1. **Find the book data dir** — check `books/` for matching `book_data.json`
+2. **Run `recall.py`** — capture its stdout as the recall prompt:
+   ```bash
+   python3 scripts/recall.py <dir>/book_data.json --chapter <N>
+   ```
+3. **Use the stdout as your basis** — read the prompt output, then compose
+   your recall response based on it. Do NOT manually print chapter briefs,
+   do NOT read book_data.json or book_index.json directly, do NOT dump
+   raw data into the conversation context.
+4. **Reply to user** with an engaging, structured recall.
+
+⚠️ **DO NOT** bypass recall.py by manually reading index/data files.
+   That wastes tokens and produces worse results.
+
 ## Workflow
 
 ### 1. Parse
